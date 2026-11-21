@@ -11,15 +11,15 @@ export interface MapAuditResult {
   readonly outOfBoundsPins: readonly number[];
 }
 
-const MAP_W = 336;
-const MAP_H = 128;
-const PIN_RADIUS = 5.1;
+const MAP_W = 236;
+const MAP_H = 140;
+const PIN_RADIUS = 4.6;
 
 export function projectGeo(lon: number, lat: number): Point {
   const latRad = (lat * Math.PI) / 180;
   const taper = Math.cos(latRad * 0.42);
-  const x = 170 + (lon - 8) * taper * 0.89;
-  const y = 11 + ((74 - lat) / 128) * 108;
+  const x = 119 + (lon - 8) * taper * 0.635;
+  const y = 14 + ((74 - lat) / 128) * 114;
   return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) };
 }
 
@@ -106,27 +106,25 @@ const LANDMASS_POLYGONS: readonly (readonly [number, number][])[] = [
   [[172, -41], [174, -42], [169, -46], [167, -45]],
 ];
 
-// Explicit anti-overlap pin label offsets (dx, dy) in SVG pixel units
+// Geographically faithful, zero-overlap pin offsets for #1–#13
 const PIN_OFFSETS: Record<number, { dx: number; dy: number }> = {
-  1: { dx: 7.5, dy: -6.5 },
-  2: { dx: 0, dy: 0 },
-  3: { dx: 4.5, dy: 4.0 },
-  4: { dx: -3.5, dy: -8.5 },
-  5: { dx: -7.5, dy: -8.0 },
-  6: { dx: 1.0, dy: 6.5 },
-  7: { dx: 2.5, dy: 4.5 },
-  8: { dx: 2.0, dy: -4.5 },
-  9: { dx: -3.5, dy: -4.0 },
-  10: { dx: 0, dy: 0 },
-  11: { dx: 1.0, dy: 7.5 },
-  12: { dx: -7.5, dy: 3.5 },
-  13: { dx: 0, dy: 0 },
-  14: { dx: 0, dy: 0 },
-  15: { dx: -2.0, dy: -1.0 },
+  1: { dx: 7.5, dy: -2.5 }, // Kyiv -> slightly E/N in Ukraine
+  2: { dx: 0, dy: 0 }, // New York
+  3: { dx: 0, dy: 0 }, // Gopalpur
+  4: { dx: -2.0, dy: -7.5 }, // SE Poland -> Poland/Baltic
+  5: { dx: -5.8, dy: -5.6 }, // Brussels -> North Sea/Benelux
+  6: { dx: -1.4, dy: -2.1 }, // Antalya -> Anatolia/Turkey (NOT Africa!)
+  7: { dx: 4.4, dy: 3.9 }, // Hormuz -> Gulf/Oman
+  8: { dx: 4.2, dy: 0.4 }, // Iraq -> Iraq
+  9: { dx: 0, dy: 0 }, // Turkana
+  10: { dx: -0.2, dy: -2.4 }, // Rome -> Central Italy (NOT Africa!)
+  11: { dx: -5.5, dy: 0.6 }, // Barcelona -> Central/Eastern Spain (NOT Atlantic!)
+  12: { dx: 0, dy: 0 }, // Buenos Aires
+  13: { dx: -2.5, dy: -2.0 }, // Wellington
 };
 
 export function auditMapPins(stories: readonly Story[]): MapAuditResult {
-  const featured = stories.filter((s) => s.id <= 15 && s.lon !== undefined && s.lat !== undefined);
+  const featured = stories.filter((s) => s.id <= 13 && s.lon !== undefined && s.lat !== undefined);
   const centers = featured.map((s) => {
     const base = projectGeo(s.lon!, s.lat!);
     const off = PIN_OFFSETS[s.id] ?? { dx: 0, dy: 0 };
@@ -162,27 +160,26 @@ export function auditMapPins(stories: readonly Story[]): MapAuditResult {
 export function renderWorldMap(stories: readonly Story[]): string {
   const landSvg = LANDMASS_POLYGONS.map(
     (poly) =>
-      `<path d="${polyPath(poly)}" fill="#D6CBB4" stroke="#A6997D" stroke-width="0.65" stroke-linejoin="round"/>`,
+      `<path d="${polyPath(poly)}" fill="#D6CBB4" stroke="#9B8E72" stroke-width="0.65" stroke-linejoin="round"/>`,
   ).join('\n    ');
 
-  // Graticule lines (equator, tropics, prime meridian)
   const eqY = projectGeo(0, 0).y;
   const tNorthY = projectGeo(0, 23.5).y;
   const tSouthY = projectGeo(0, -23.5).y;
   const pmX = projectGeo(0, 0).x;
 
-  // Brief muted dots (#16–#46 that have geo coordinates)
+  // Brief muted dots (#14–#46 that have geo coordinates)
   const briefDots = stories
-    .filter((s) => s.id >= 16 && s.lon !== undefined && s.lat !== undefined)
+    .filter((s) => s.id >= 14 && s.lon !== undefined && s.lat !== undefined)
     .map((s) => {
       const pt = projectGeo(s.lon!, s.lat!);
       const color = REGION_COLOR_MAP[s.region];
-      return `<circle cx="${pt.x}" cy="${pt.y}" r="1.45" fill="${color}" opacity="0.65"/>`;
+      return `<circle cx="${pt.x}" cy="${pt.y}" r="1.4" fill="${color}" opacity="0.72"/>`;
     })
     .join('\n    ');
 
-  // Lead & Feature numbered pins (#1–#15)
-  const featured = stories.filter((s) => s.id <= 15 && s.lon !== undefined && s.lat !== undefined);
+  // Lead & Feature numbered pins (#1–#13)
+  const featured = stories.filter((s) => s.id <= 13 && s.lon !== undefined && s.lat !== undefined);
   const leaderSvg: string[] = [];
   const pinSvg: string[] = [];
 
@@ -195,26 +192,26 @@ export function renderWorldMap(stories: readonly Story[]): string {
     const dist = Math.hypot(off.dx, off.dy);
     const isLead = s.id <= 3;
 
-    if (dist > 2.5) {
+    if (dist > 1.8) {
       leaderSvg.push(
-        `<line x1="${base.x}" y1="${base.y}" x2="${px}" y2="${py}" stroke="#141413" stroke-width="0.65" opacity="0.75"/>` +
-          `<circle cx="${base.x}" cy="${base.y}" r="1.35" fill="#141413"/>`,
+        `<line x1="${base.x}" y1="${base.y}" x2="${px}" y2="${py}" stroke="#141413" stroke-width="0.75" opacity="0.85"/>` +
+          `<circle cx="${base.x}" cy="${base.y}" r="1.3" fill="#141413"/>`,
       );
     }
 
-    const r = isLead ? 5.6 : PIN_RADIUS;
+    const r = isLead ? 5.1 : PIN_RADIUS;
     const contrastRing = isLead
-      ? `<circle cx="${px}" cy="${py}" r="6.7" fill="#141413"/>\n        `
+      ? `<circle cx="${px}" cy="${py}" r="6.1" fill="#141413"/>\n        `
       : '';
     pinSvg.push(
       `<g>
-        ${contrastRing}<circle cx="${px}" cy="${py}" r="${r}" fill="${color}" stroke="#FFFFFF" stroke-width="${isLead ? 1.2 : 1.0}"/>
-        <text x="${px}" y="${Number((py + 2.0).toFixed(1))}" text-anchor="middle" font-family="'Noto Sans', sans-serif" font-size="${isLead ? 6.2 : 5.6}" font-weight="700" fill="#FFFFFF">${s.id}</text>
+        ${contrastRing}<circle cx="${px}" cy="${py}" r="${r}" fill="${color}" stroke="#FFFFFF" stroke-width="${isLead ? 1.15 : 0.95}"/>
+        <text x="${px}" y="${Number((py + 1.9).toFixed(1))}" text-anchor="middle" font-family="'Ubuntu Sans', 'Noto Sans', sans-serif" font-size="${isLead ? 5.8 : 5.2}" font-weight="800" fill="#FFFFFF">${s.id}</text>
       </g>`,
     );
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${MAP_W} ${MAP_H}" width="100%" height="100%" role="img" aria-label="World map locating stories 1 to 15">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${MAP_W} ${MAP_H}" width="100%" height="100%" role="img" aria-label="World map locating stories 1 to 13">
   <rect width="${MAP_W}" height="${MAP_H}" rx="2" fill="#EDE6D6" stroke="#C8BFA8" stroke-width="0.8"/>
   <g stroke="#DDD3BE" stroke-width="0.5">
     <line x1="0" y1="${eqY}" x2="${MAP_W}" y2="${eqY}" stroke-dasharray="2 2"/>

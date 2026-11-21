@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const MAX_BYTES = 1048576;
 const EXPECTED_WIDTH = 1024;
 const EXPECTED_HEIGHT = 1024;
-const EXPECTED_SHA256 = '5403ad734c2206d2f64f489d69bf73963a08201b3c76a35f44c316100bb5fa9e';
+const EXPECTED_SHA256 = '2729d6bd2d9270cf540fef9cd869c08bb26cd4517af28726220a0048d9ccca77';
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const PNG_IEND = Buffer.from([

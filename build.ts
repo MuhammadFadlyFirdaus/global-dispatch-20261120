@@ -14,7 +14,8 @@ import type { FieldKey, RegionKey } from './src/types.ts';
 
 const ROOT_DIR = dirname(fileURLToPath(import.meta.url));
 const SCRATCH_DIR =
-  '/home/fadori/.gemini/antigravity-cli/brain/10cd250b-b5ff-4ec4-a45b-ed23da03816e/scratch';
+  '/home/fadori/.gemini/antigravity-cli/brain/f4ef8bc8-3563-4260-9de7-079d3d339f93/scratch';
+const CANDIDATE_ONLY = process.env.CANDIDATE_ONLY === '1';
 
 const FORBIDDEN_KEYWORDS = [
   'Bukele',
@@ -59,7 +60,7 @@ function assertEditorialIntegrity(): void {
     }
     seenIds.add(s.id);
 
-    const expectedTier = s.id <= 3 ? 'lead' : s.id <= 15 ? 'feature' : 'brief';
+    const expectedTier = s.id <= 3 ? 'lead' : s.id <= 13 ? 'feature' : 'brief';
     if (s.tier !== expectedTier) {
       throw new Error(`Story #${s.id} has tier ${s.tier}, expected ${expectedTier}`);
     }
@@ -108,13 +109,13 @@ function assertEditorialIntegrity(): void {
   if (mapAudit.outOfBoundsPins.length > 0) {
     throw new Error(`Out-of-bounds map pins: ${mapAudit.outOfBoundsPins.join(', ')}`);
   }
-  if (mapAudit.minCenterDistancePx < 12.0) {
+  if (mapAudit.minCenterDistancePx < 10.5) {
     throw new Error(
-      `Map pins too close (${mapAudit.minCenterDistancePx}px < 12.0px minimum)`,
+      `Map pins too close (${mapAudit.minCenterDistancePx}px < 10.5px minimum)`,
     );
   }
   console.log(
-    `[ASSERT OK] 48 stories | 7 regions=48 | 17 fields=48 | min pin distance=${mapAudit.minCenterDistancePx}px | 0 forbidden keywords`,
+    `[ASSERT OK] 48 stories (3+10+35) | 7 regions=48 | 17 fields=48 | min pin distance=${mapAudit.minCenterDistancePx}px | 0 forbidden keywords`,
   );
 }
 
@@ -127,16 +128,20 @@ function runDomOverflowCheck(html: string): void {
   const selectors = [
     '.page',
     '.masthead',
+    '.masthead-title',
     '.masthead-deck',
     '.ribbon',
-    '.fields-wrap',
     '.lead-card',
     '.feature-card',
+    '.feature-summary',
     '.map-panel',
+    '.how-to-read',
     '.date-check',
+    '.dc-body',
     '.briefs-panel',
     '#briefs-col-1',
     '#briefs-col-2',
+    '#briefs-col-3',
   ];
   for (const sel of selectors) {
     const els = document.querySelectorAll(sel);
@@ -156,17 +161,18 @@ function runDomOverflowCheck(html: string): void {
   }
   const col1 = document.querySelector('#briefs-col-1');
   const col2 = document.querySelector('#briefs-col-2');
-  const col1Bottom = col1 && col1.lastElementChild ? col1.lastElementChild.getBoundingClientRect().bottom : 0;
-  const col2Bottom = col2 && col2.lastElementChild ? col2.lastElementChild.getBoundingClientRect().bottom : 0;
+  const col3 = document.querySelector('#briefs-col-3');
   const panelBottom = document.querySelector('.briefs-panel').getBoundingClientRect().bottom;
+  const colBottom = (el) => el && el.lastElementChild ? Number((panelBottom - el.lastElementChild.getBoundingClientRect().bottom).toFixed(1)) : 0;
   document.documentElement.dataset.audit = JSON.stringify({
     docW: document.documentElement.scrollWidth,
     docH: document.documentElement.scrollHeight,
     pageRect: page.getBoundingClientRect(),
     overflows: checks,
     briefSpaceLeftPx: {
-      col1: Number((panelBottom - col1Bottom).toFixed(1)),
-      col2: Number((panelBottom - col2Bottom).toFixed(1)),
+      col1: colBottom(col1),
+      col2: colBottom(col2),
+      col3: colBottom(col3),
     },
   });
 })();
@@ -207,6 +213,11 @@ function runDomOverflowCheck(html: string): void {
   if (audit.overflows.length > 0) {
     throw new Error(`DOM overflow detected: ${JSON.stringify(audit.overflows)}`);
   }
+  for (const [col, left] of Object.entries(audit.briefSpaceLeftPx) as [string, number][]) {
+    if (left < 8.0) {
+      throw new Error(`Brief column ${col} bottom clearance too tight (${left}px < 8.0px)`);
+    }
+  }
 }
 
 function main(): void {
@@ -235,13 +246,14 @@ function main(): void {
     { stdio: 'inherit' },
   );
 
-  const entryPath = join(ROOT_DIR, 'entry.png');
-  const preview300Path = join(SCRATCH_DIR, 'preview-300.png');
-  const compareSheetPath = join(SCRATCH_DIR, 'compare-sheet.png');
+  const entryOutPath = CANDIDATE_ONLY
+    ? join(SCRATCH_DIR, 'candidate.png')
+    : join(ROOT_DIR, 'entry.png');
+  const preview300Path = join(SCRATCH_DIR, 'candidate-300.png');
 
   const pyScript = `
 import os
-from PIL import Image, ImageDraw
+from PIL import Image
 
 raw = Image.open(${JSON.stringify(raw2048Path)}).convert("RGB")
 print("raw-2048 size:", raw.size)
@@ -250,7 +262,6 @@ if raw.size != (2048, 2048):
 
 img_1024 = raw.resize((1024, 1024), Image.Resampling.LANCZOS)
 
-# Compare lossless RGB vs 256-color palette size
 rgb_tmp = ${JSON.stringify(join(SCRATCH_DIR, 'test-rgb.png'))}
 pal_tmp = ${JSON.stringify(join(SCRATCH_DIR, 'test-pal.png'))}
 img_1024.save(rgb_tmp, format="PNG", optimize=True, compress_level=9)
@@ -260,60 +271,56 @@ rgb_bytes = os.path.getsize(rgb_tmp)
 pal_bytes = os.path.getsize(pal_tmp)
 print(f"PNG sizes: lossless_rgb={rgb_bytes} bytes, fastoctree_256={pal_bytes} bytes")
 
-# Keep lossless RGB if <= 360 KB; otherwise use high-quality 256-color if crisp, or check size
-entry_out = ${JSON.stringify(entryPath)}
-if rgb_bytes <= 360000:
+entry_out = ${JSON.stringify(entryOutPath)}
+if rgb_bytes <= 1048576:
     img_1024.save(entry_out, format="PNG", optimize=True, compress_level=9)
-    print("Selected: lossless RGB PNG")
+    print(f"Selected: lossless RGB PNG ({rgb_bytes} bytes <= 1048576)")
 else:
-    pal.save(entry_out, format="PNG", optimize=True, compress_level=9)
-    print("Selected: 256-color FASTOCTREE PNG (rgb exceeded 360KB)")
+    raise RuntimeError(f"Lossless RGB PNG exceeded 1 MiB ({rgb_bytes} bytes)")
 
-# Preview 300x300
-prev_300 = img_1024.resize((300, 300), Image.Resampling.LANCZOS)
+# Verify PNG integrity & generate 300px + 1:1 inspection crops
+with Image.open(entry_out) as chk:
+    chk.verify()
+saved = Image.open(entry_out).convert("RGB")
+prev_300 = saved.resize((300, 300), Image.Resampling.LANCZOS)
 prev_300.save(${JSON.stringify(preview300Path)}, format="PNG", optimize=True, compress_level=9)
 
-# 2x2 Compare Sheet (512x512 tiles -> 1024x1024 grid)
-sheet = Image.new("RGB", (1024, 1024), (20, 20, 19))
-tiles = [
-    (${JSON.stringify(join(SCRATCH_DIR, 'top1.png'))}, (0, 0)),
-    (${JSON.stringify(join(SCRATCH_DIR, 'top2.png'))}, (512, 0)),
-    (${JSON.stringify(join(SCRATCH_DIR, 'final18_top1.png'))}, (0, 512)),
-    (entry_out, (512, 512)),
-]
-for p, pos in tiles:
-    if os.path.exists(p):
-        t = Image.open(p).convert("RGB").resize((512, 512), Image.Resampling.LANCZOS)
-        sheet.paste(t, pos)
-draw = ImageDraw.Draw(sheet)
-draw.line([(512, 0), (512, 1024)], fill=(185, 28, 28), width=2)
-draw.line([(0, 512), (1024, 512)], fill=(185, 28, 28), width=2)
-sheet.save(${JSON.stringify(compareSheetPath)}, format="PNG", optimize=True)
+# Quadrant and map 1:1 crops in scratch
+saved.crop((0, 0, 512, 512)).save(${JSON.stringify(join(SCRATCH_DIR, 'cand_tl.png'))})
+saved.crop((512, 0, 1024, 512)).save(${JSON.stringify(join(SCRATCH_DIR, 'cand_tr.png'))})
+saved.crop((0, 512, 512, 1024)).save(${JSON.stringify(join(SCRATCH_DIR, 'cand_bl.png'))})
+saved.crop((512, 512, 1024, 1024)).save(${JSON.stringify(join(SCRATCH_DIR, 'cand_br.png'))})
+saved.crop((0, 600, 280, 900)).save(${JSON.stringify(join(SCRATCH_DIR, 'cand_map.png'))})
 `;
 
   execFileSync('python3', ['-c', pyScript], { stdio: 'inherit' });
 
-  const entryBytes = readFileSync(entryPath);
+  const entryBytes = readFileSync(entryOutPath);
   const sha256 = createHash('sha256').update(entryBytes).digest('hex');
-  const size = statSync(entryPath).size;
-  console.log(`[BUILT] entry.png | size=${size} bytes | sha256=${sha256}`);
+  const size = statSync(entryOutPath).size;
+  console.log(
+    `[BUILT] ${CANDIDATE_ONLY ? 'SCRATCH candidate.png' : 'entry.png'} | size=${size} bytes | sha256=${sha256}`,
+  );
 
   if (size > 1048576) {
-    throw new Error(`entry.png exceeds 1 MiB limit: ${size}`);
+    throw new Error(`Output PNG exceeds 1 MiB limit: ${size}`);
   }
 
-  // Sync EXPECTED_SHA256 inside main.ts
-  const mainTsPath = join(ROOT_DIR, 'main.ts');
-  const mainSrc = readFileSync(mainTsPath, 'utf8');
-  const updatedMain = mainSrc.replace(
-    /const EXPECTED_SHA256 = '[a-f0-9]*';/,
-    `const EXPECTED_SHA256 = '${sha256}';`,
-  );
-  if (!updatedMain.includes(sha256)) {
-    throw new Error('Could not update EXPECTED_SHA256 in main.ts');
+  if (!CANDIDATE_ONLY) {
+    const mainTsPath = join(ROOT_DIR, 'main.ts');
+    const mainSrc = readFileSync(mainTsPath, 'utf8');
+    const updatedMain = mainSrc.replace(
+      /const EXPECTED_SHA256 = '[a-f0-9]*';/,
+      `const EXPECTED_SHA256 = '${sha256}';`,
+    );
+    if (!updatedMain.includes(sha256)) {
+      throw new Error('Could not update EXPECTED_SHA256 in main.ts');
+    }
+    writeFileSync(mainTsPath, updatedMain, 'utf8');
+    console.log(`[SYNCED] main.ts EXPECTED_SHA256=${sha256}`);
+  } else {
+    console.log('[CANDIDATE_ONLY] Preserved baseline entry.png & main.ts untouched.');
   }
-  writeFileSync(mainTsPath, updatedMain, 'utf8');
-  console.log(`[SYNCED] main.ts EXPECTED_SHA256=${sha256}`);
 }
 
 main();

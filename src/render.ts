@@ -3,8 +3,6 @@ import { renderWorldMap } from './map.ts';
 import {
   DATE_CHECK_ROWS,
   EDITION_DATE,
-  EXPECTED_FIELD_COUNTS,
-  KPI_ITEMS,
   REGION_COLOR_MAP,
   REGION_METAS,
   STORIES,
@@ -53,8 +51,7 @@ function renderLeadCard(story: Story): string {
       ${badgeHtml}
     </div>
     <h2 class="lead-headline">${esc(story.headline)}</h2>
-    <p class="lead-summary">${esc(story.summary)}</p>
-    <div class="card-source">Source: ${esc(story.source)}</div>
+    <p class="lead-summary">${esc(story.summary)} <span class="inline-src">(${esc(story.source)})</span></p>
   </article>`;
 }
 
@@ -80,17 +77,16 @@ function renderFeatureCard(story: Story): string {
 
 function renderBriefGroup(region: RegionKey, briefs: readonly Story[]): string {
   const color = REGION_COLOR_MAP[region];
-  const items = briefs
-    .filter((b) => b.region === region)
+  const groupStories = briefs.filter((b) => b.region === region);
+  const items = groupStories
     .map(
       (b) =>
         `<div class="brief-item"><span class="b-id" style="color:${color}">#${b.id}</span> <strong>${esc(b.dateline)}: ${esc(b.headline)}</strong> · ${esc(b.summary)} <span class="b-src">(${esc(b.source)})</span></div>`,
     )
     .join('\n          ');
 
-  const count = briefs.filter((b) => b.region === region).length;
   return `<div class="brief-group">
-        <div class="brief-group-hdr" style="border-left-color:${color}; color:${color}">${esc(region.toUpperCase())} <span class="brief-count">(${count})</span></div>
+        <div class="brief-group-hdr" style="border-left-color:${color}; color:${color}">${esc(region.toUpperCase())} (${groupStories.length})</div>
         ${items}
       </div>`;
 }
@@ -107,45 +103,29 @@ export function renderBroadsheetHtml(): string {
       </div>`,
   ).join('\n      ');
 
-  const kpiHtml = KPI_ITEMS.map(
-    (k) => `<div class="kpi-cell">
-        <span class="kpi-val">${esc(k.value)}</span>
-        <div class="kpi-meta"><span class="kpi-lbl">${esc(k.label)}</span> <span class="kpi-src">(${esc(k.source)})</span></div>
-      </div>`,
-  ).join('\n      ');
-
-  const regionShortCode: Record<RegionKey, string> = {
-    Europe: 'EU',
-    Americas: 'AM',
-    Asia: 'AS',
-    Africa: 'AF',
-    'Middle East': 'ME',
-    Oceania: 'OC',
-    Global: 'GL',
+  const regionLabelMap: Record<RegionKey, string> = {
+    Europe: 'EUROPE',
+    Americas: 'AMERICAS',
+    Asia: 'ASIA',
+    Africa: 'AFRICA',
+    'Middle East': 'MID EAST',
+    Oceania: 'OCEANIA',
+    Global: 'GLOBAL',
   };
 
   const regionBarHtml = REGION_METAS.map((r) => {
     const pct = ((r.expectedCount / 48) * 100).toFixed(2);
-    return `<div class="reg-seg" style="width:${pct}%; background:${r.color}">${regionShortCode[r.key]} ${r.expectedCount}</div>`;
+    return `<div class="reg-seg" style="width:${pct}%; background:${r.color}">${regionLabelMap[r.key]} ${r.expectedCount}</div>`;
   }).join('');
-
-  const fieldSummary = Object.entries(EXPECTED_FIELD_COUNTS)
-    .map(([k, v]) => {
-      const short = k
-        .replace('Climate & Env', 'Climate')
-        .replace('Labour & Protest', 'Labour')
-        .replace('Tech & Cyber', 'Tech');
-      return `${esc(short)} <strong>${v}</strong>`;
-    })
-    .join(' · ');
 
   const dateCheckHtml = DATE_CHECK_ROWS.map(
     (row) =>
-      `<div class="dc-row"><span class="dc-win">${esc(row.windowLabel)}:</span> ${esc(row.items)}</div>`,
-  ).join('\n          ');
+      `<span class="dc-item"><strong class="dc-win">${esc(row.windowLabel)}:</strong> ${esc(row.items)}</span>`,
+  ).join(' &nbsp;|&nbsp; ');
 
-  const col1Regions: readonly RegionKey[] = ['Americas', 'Africa', 'Middle East'];
-  const col2Regions: readonly RegionKey[] = ['Europe', 'Asia', 'Oceania', 'Global'];
+  const col1Regions: readonly RegionKey[] = ['Americas', 'Middle East']; // 8 + 3 = 11
+  const col2Regions: readonly RegionKey[] = ['Europe', 'Africa']; // 6 + 6 = 12
+  const col3Regions: readonly RegionKey[] = ['Asia', 'Oceania', 'Global']; // 7 + 3 + 2 = 12
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -167,31 +147,32 @@ export function renderBroadsheetHtml(): string {
   .page {
     width: 1024px;
     height: 1024px;
-    padding: 8px 16px 6px;
+    padding: 5px 14px 4px;
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    font-family: 'Noto Sans', 'Liberation Sans', sans-serif;
+    gap: 2.5px;
+    font-family: 'Ubuntu Sans', 'Noto Sans', 'Liberation Sans', sans-serif;
     font-variant-numeric: tabular-nums;
     overflow: hidden;
   }
 
-  /* === BAND 1: MASTHEAD === */
+  /* === BAND 1: FULL-WIDTH BOLD MASTHEAD === */
   .masthead {
-    height: 79px;
+    height: 95px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    text-align: center;
   }
   .eyebrow {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 7.7px;
-    font-weight: 700;
-    letter-spacing: 0.7px;
-    color: #57534E;
+    font-size: 8.2px;
+    font-weight: 800;
+    letter-spacing: 0.55px;
+    color: #44403C;
   }
   .eyebrow-left {
     display: flex;
@@ -204,45 +185,27 @@ export function renderBroadsheetHtml(): string {
     color: #FAF6EE;
     padding: 1px 5px;
     border-radius: 1.5px;
-    letter-spacing: 0.9px;
-  }
-  .title-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin: 0;
+    letter-spacing: 0.7px;
   }
   .masthead-title {
-    margin: 0;
-    font-family: 'Noto Serif Display', 'Noto Serif', 'Liberation Serif', Georgia, serif;
-    font-size: 46px;
+    margin: -7px 0 -6px;
+    font-family: 'Noto Serif', 'DejaVu Serif', 'Liberation Serif', Georgia, serif;
+    font-size: 58px;
     font-weight: 700;
-    line-height: 0.98;
-    letter-spacing: -1.1px;
-    color: #141413;
-  }
-  .edition-stamp {
-    text-align: right;
-    font-size: 6.9px;
-    font-weight: 700;
-    line-height: 1.18;
-    color: #57534E;
-    letter-spacing: 0.4px;
-  }
-  .edition-stamp strong {
-    color: #141413;
+    line-height: 1.36;
+    letter-spacing: -1.0px;
+    color: #111110;
+    white-space: nowrap;
   }
   .masthead-deck {
     margin: 0;
-    font-family: 'Noto Serif', 'Liberation Serif', Georgia, serif;
-    font-style: italic;
-    font-size: 9.6px;
-    line-height: 1.25;
-    min-height: 13px;
-    color: #2B2A27;
+    font-family: 'Ubuntu Sans', 'Noto Sans', sans-serif;
+    font-style: normal;
+    font-weight: 700;
+    font-size: 11.4px;
+    line-height: 1.18;
+    color: #1C1917;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   .double-rule {
     border-top: 2.2px solid #141413;
@@ -250,32 +213,51 @@ export function renderBroadsheetHtml(): string {
     height: 3px;
   }
 
-  /* === BAND 2: UTC + KPI + REGION/FIELD RIBBON === */
+  /* === BAND 2: REGION BAR + 24H UTC TIMELINE === */
   .ribbon {
-    height: 64px;
+    height: 43px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     border-bottom: 1.5px solid #141413;
-    padding-bottom: 3px;
+    padding-bottom: 2px;
   }
+  .reg-bar {
+    height: 15px;
+    width: 100%;
+    display: flex;
+    border-radius: 2px;
+    overflow: hidden;
+    border: 0.6px solid #A89F8D;
+  }
+  .reg-seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8.1px;
+    font-weight: 800;
+    color: #FFFFFF;
+    white-space: nowrap;
+    letter-spacing: 0.25px;
+    border-right: 0.8px solid rgba(255,255,255,0.45);
+  }
+  .reg-seg:last-child { border-right: none; }
+
   .utc-row {
     display: flex;
     align-items: center;
-    height: 23px;
-    border-bottom: 1px solid #DDD4C0;
-    padding-bottom: 2px;
+    height: 26px;
   }
   .ribbon-label-red {
     background: #B91C1C;
     color: #FFFFFF;
-    font-size: 6.9px;
-    font-weight: 700;
+    font-size: 7.4px;
+    font-weight: 800;
     letter-spacing: 0.4px;
-    padding: 2.5px 5px;
+    padding: 3px 5px;
     border-radius: 1.5px;
-    width: 82px;
+    width: 78px;
     text-align: center;
     flex-shrink: 0;
     margin-right: 8px;
@@ -285,7 +267,6 @@ export function renderBroadsheetHtml(): string {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     gap: 5px;
-    position: relative;
   }
   .utc-stop {
     display: flex;
@@ -296,7 +277,7 @@ export function renderBroadsheetHtml(): string {
     display: flex;
     align-items: center;
     gap: 3px;
-    font-size: 7.4px;
+    font-size: 8.3px;
   }
   .utc-dot {
     width: 5px;
@@ -305,118 +286,13 @@ export function renderBroadsheetHtml(): string {
     background: #B91C1C;
     flex-shrink: 0;
   }
-  .utc-time {
-    font-weight: 800;
-    color: #B91C1C;
-  }
-  .utc-title {
-    font-weight: 700;
-    color: #141413;
-    white-space: nowrap;
-  }
-  .utc-detail {
-    font-size: 6.6px;
-    color: #57534E;
-    padding-left: 8px;
-    white-space: nowrap;
-  }
+  .utc-time { font-weight: 800; color: #B91C1C; }
+  .utc-title { font-weight: 800; color: #141413; white-space: nowrap; }
+  .utc-detail { font-size: 7.4px; color: #44403C; padding-left: 8px; white-space: nowrap; }
 
-  .kpi-row {
-    display: flex;
-    align-items: center;
-    height: 22px;
-    border-bottom: 1px solid #DDD4C0;
-    padding-bottom: 2px;
-  }
-  .ribbon-label-dark {
-    background: #141413;
-    color: #FAF6EE;
-    font-size: 6.7px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-    padding: 2.5px 4px;
-    border-radius: 1.5px;
-    width: 82px;
-    text-align: center;
-    flex-shrink: 0;
-    margin-right: 8px;
-  }
-  .kpi-grid {
-    flex: 1;
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 6px;
-  }
-  .kpi-cell {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    border-left: 1px solid #D8CEB8;
-    padding-left: 5px;
-  }
-  .kpi-cell:first-child { border-left: none; padding-left: 0; }
-  .kpi-val {
-    font-size: 11px;
-    font-weight: 800;
-    color: #B91C1C;
-    letter-spacing: -0.3px;
-    flex-shrink: 0;
-  }
-  .kpi-meta {
-    font-size: 6.3px;
-    line-height: 1.12;
-    color: #2B2A27;
-  }
-  .kpi-src { color: #57534E; font-style: italic; }
-
-  .tax-row {
-    display: grid;
-    grid-template-columns: 336px 1fr;
-    gap: 10px;
-    align-items: center;
-    height: 16px;
-  }
-  .reg-wrap {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-  .tax-lbl {
-    font-size: 6.8px;
-    font-weight: 800;
-    color: #141413;
-    white-space: nowrap;
-  }
-  .reg-bar {
-    flex: 1;
-    height: 12px;
-    display: flex;
-    border-radius: 2px;
-    overflow: hidden;
-    border: 0.5px solid #A89F8D;
-  }
-  .reg-seg {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 6.4px;
-    font-weight: 700;
-    color: #FFFFFF;
-    white-space: nowrap;
-    border-right: 0.6px solid rgba(255,255,255,0.4);
-  }
-  .reg-seg:last-child { border-right: none; }
-  .fields-wrap {
-    font-family: 'Liberation Sans Narrow', 'Noto Sans', sans-serif;
-    font-size: 7.2px;
-    color: #2B2A27;
-    white-space: nowrap;
-    overflow: hidden;
-  }
-
-  /* === BAND 3: 3 HERO LEADS === */
+  /* === BAND 3: 3 HERO LEADS (18.5-20px BOLD) === */
   .leads-grid {
-    height: 214px;
+    height: 206px;
     flex-shrink: 0;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -427,16 +303,16 @@ export function renderBroadsheetHtml(): string {
     border: 1px solid #C8BFA8;
     border-top-width: 3px;
     border-radius: 2px;
-    padding: 5px 6px;
+    padding: 4px 6.5px;
     display: flex;
     flex-direction: column;
-    height: 214px;
+    height: 206px;
     overflow: hidden;
   }
   .lead-art {
     width: 100%;
-    height: 97px;
-    margin-bottom: 3.5px;
+    height: 86px;
+    margin-bottom: 3px;
     border-radius: 2px;
     overflow: hidden;
     flex-shrink: 0;
@@ -453,60 +329,58 @@ export function renderBroadsheetHtml(): string {
     display: flex;
     align-items: center;
     gap: 3.5px;
-    font-size: 6.95px;
-    font-weight: 700;
+    font-size: 7.3px;
+    font-weight: 800;
     white-space: nowrap;
   }
   .num-pill {
     color: #FFFFFF;
     padding: 0.5px 4px;
     border-radius: 1.5px;
-    font-size: 7.2px;
+    font-size: 7.5px;
     font-weight: 800;
   }
-  .region-tag { letter-spacing: 0.3px; }
-  .dateline-tag { color: #57534E; font-weight: 600; }
+  .region-tag { letter-spacing: 0.2px; }
+  .dateline-tag { color: #44403C; font-weight: 700; }
   .lead-headline {
     margin: 0 0 3px;
-    font-family: 'Noto Serif Display', 'Noto Serif', 'Liberation Serif', Georgia, serif;
-    font-size: 13.6px;
+    font-family: 'Noto Serif', 'DejaVu Serif', 'Liberation Serif', Georgia, serif;
+    font-size: 18.5px;
     font-weight: 700;
-    line-height: 1.15;
-    color: #141413;
+    line-height: 1.11;
+    letter-spacing: -0.25px;
+    color: #111110;
   }
   .lead-summary {
     margin: 0;
-    font-size: 8.65px;
-    line-height: 1.27;
-    color: #2B2A27;
+    font-size: 9.35px;
+    line-height: 1.22;
+    color: #1C1917;
   }
-  .card-source {
-    margin-top: auto;
-    padding-top: 2px;
-    border-top: 0.6px solid #D8CEB8;
-    font-size: 7.1px;
-    font-style: italic;
+  .inline-src {
     color: #57534E;
+    font-style: italic;
+    font-size: 8.5px;
   }
 
-  /* === BAND 4: 12 FEATURES (2x6) === */
+  /* === BAND 4: 10 FEATURES (2x5 GRID, 12.5px BOLD + 1-LINE SUMMARY) === */
   .features-grid {
-    height: 268px;
+    height: 252px;
     flex-shrink: 0;
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    grid-template-rows: repeat(2, 131px);
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(2, 123px);
     gap: 6px 8px;
   }
   .feature-card {
     background: #F4EFE4;
     border: 1px solid #C8BFA8;
-    border-top-width: 2.5px;
+    border-top-width: 2.8px;
     border-radius: 2px;
-    padding: 4px 5px;
+    padding: 3.5px 5.5px;
     display: flex;
     flex-direction: column;
-    height: 131px;
+    height: 123px;
     overflow: hidden;
   }
   .feature-meta {
@@ -514,7 +388,7 @@ export function renderBroadsheetHtml(): string {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 2px;
-    height: 11px;
+    height: 12px;
     flex-shrink: 0;
   }
   .feature-meta-left {
@@ -525,50 +399,52 @@ export function renderBroadsheetHtml(): string {
   }
   .num-pill-sm {
     color: #FFFFFF;
-    padding: 0 3px;
+    padding: 0 3.5px;
     border-radius: 1.5px;
-    font-size: 6.7px;
+    font-size: 7.2px;
     font-weight: 800;
-    line-height: 10px;
+    line-height: 11px;
   }
   .feature-loc {
-    font-family: 'Liberation Sans Narrow', 'Noto Sans', sans-serif;
-    font-size: 6.8px;
-    font-weight: 700;
-    color: #44403C;
+    font-size: 7.4px;
+    font-weight: 800;
+    color: #292524;
     white-space: nowrap;
     overflow: hidden;
   }
   .feature-art {
     width: 100%;
-    height: 43px;
+    height: 48px;
     margin-bottom: 2px;
     border-radius: 1.5px;
     overflow: hidden;
     flex-shrink: 0;
   }
   .feature-headline {
-    margin: 0 0 2px;
-    font-family: 'Noto Serif', 'Liberation Serif', Georgia, serif;
-    font-size: 9.0px;
+    margin: 0 0 1.5px;
+    font-family: 'Noto Serif', 'DejaVu Serif', 'Liberation Serif', Georgia, serif;
+    font-size: 12.5px;
     font-weight: 700;
-    line-height: 1.12;
-    color: #141413;
+    line-height: 1.11;
+    letter-spacing: -0.15px;
+    color: #111110;
   }
   .feature-summary {
     margin: 0;
-    font-size: 7.35px;
-    line-height: 1.2;
-    color: #2B2A27;
+    font-size: 7.55px;
+    line-height: 1.24;
+    color: #292524;
+    white-space: nowrap;
+    overflow: hidden;
+    flex-shrink: 0;
   }
   .feature-footer {
     margin-top: auto;
-    padding-top: 1.5px;
-    border-top: 0.5px solid #DDD4C0;
+    padding-top: 1px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 6.5px;
+    font-size: 7.1px;
   }
   .feature-src {
     color: #57534E;
@@ -577,48 +453,42 @@ export function renderBroadsheetHtml(): string {
     overflow: hidden;
   }
   .feature-field {
-    font-weight: 700;
+    font-weight: 800;
     white-space: nowrap;
   }
 
   /* === EPISTEMIC BADGES === */
-  .ep-group {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    flex-shrink: 0;
-  }
+  .ep-group { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
   .ep-badge, .ep-badge-sm {
-    font-family: 'Liberation Sans Narrow', 'Noto Sans', sans-serif;
-    font-weight: 700;
+    font-weight: 800;
     border-radius: 2px;
-    letter-spacing: 0.25px;
+    letter-spacing: 0.2px;
     flex-shrink: 0;
   }
-  .ep-badge { font-size: 6.7px; padding: 1px 4px; }
-  .ep-badge-sm { font-size: 6.0px; padding: 0.5px 3px; line-height: 9px; }
+  .ep-badge { font-size: 6.9px; padding: 1px 4px; }
+  .ep-badge-sm { font-size: 6.3px; padding: 0.5px 3.5px; line-height: 10px; }
   .ep-official  { background: #DBEAFE; color: #1E3A8A; }
   .ep-confirmed { background: #DCFCE7; color: #14532D; }
   .ep-reported  { background: #FEF3C7; color: #92400E; }
   .ep-ongoing   { background: #FFEDD5; color: #7C2D12; }
   .ep-claim     { background: #FEE2E2; color: #991B1B; }
 
-  /* === BAND 5: LOWER DECK === */
+  /* === BAND 5: LOWER DECK (MAP+LEGEND LEFT | 3-COL BRIEFS RIGHT) === */
   .lower-deck {
-    height: 356px;
+    height: 345px;
     flex-shrink: 0;
     display: grid;
-    grid-template-columns: 336px 1fr;
-    gap: 10px;
+    grid-template-columns: 234px 1fr;
+    gap: 8px;
   }
   .left-lower {
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    height: 356px;
+    gap: 4px;
+    height: 345px;
   }
   .map-panel {
-    height: 186px;
+    height: 188px;
     background: #F4EFE4;
     border: 1px solid #C8BFA8;
     border-radius: 2px;
@@ -633,77 +503,72 @@ export function renderBroadsheetHtml(): string {
     align-items: baseline;
     margin-bottom: 2px;
   }
-  .panel-title {
-    font-size: 7.8px;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-    color: #141413;
-  }
-  .panel-sub {
-    font-size: 6.5px;
-    color: #57534E;
-  }
-  .map-box {
-    height: 138px;
-    width: 100%;
-    flex-shrink: 0;
-  }
+  .panel-title { font-size: 8.2px; font-weight: 800; letter-spacing: 0.4px; color: #141413; }
+  .panel-sub { font-size: 6.9px; color: #44403C; font-weight: 700; }
+  .map-box { height: 134px; width: 100%; flex-shrink: 0; }
   .how-sure {
     margin-top: auto;
     border-top: 0.6px solid #D8CEB8;
     padding-top: 3px;
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 3px;
-    font-size: 6.05px;
-    white-space: nowrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2.5px 4px;
+    font-size: 6.7px;
     color: #2B2A27;
   }
-  .hs-item { display: inline-flex; align-items: center; gap: 2px; }
+  .hs-item { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 
-  .date-check {
+  .how-to-read {
     flex: 1;
-    background: #FDF8F6;
-    border: 1.5px solid #B91C1C;
+    background: #F4EFE4;
+    border: 1px solid #C8BFA8;
+    border-left: 3px solid #B91C1C;
     border-radius: 2px;
+    padding: 4px 6.5px;
     display: flex;
     flex-direction: column;
+    justify-content: flex-start;
+    gap: 3px;
     overflow: hidden;
   }
-  .dc-hdr {
-    background: #B91C1C;
-    color: #FFFFFF;
-    font-size: 7.3px;
-    font-weight: 700;
-    letter-spacing: 0.45px;
-    padding: 2.5px 6px;
-    flex-shrink: 0;
+  .htr-hdr {
+    font-size: 8.1px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    color: #991B1B;
+    border-bottom: 1px solid #D8CEB8;
+    padding-bottom: 1.5px;
   }
-  .dc-body {
-    padding: 5px 6.5px;
+  .htr-body {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    flex: 1;
-    gap: 5.5px;
-    font-size: 7.5px;
-    line-height: 1.28;
-    color: #2B2A27;
+    gap: 3px;
+    font-size: 7.7px;
+    line-height: 1.2;
+    color: #292524;
   }
-  .dc-win {
-    font-weight: 800;
-    color: #991B1B;
+  .kf-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
   }
+  .kf-cell {
+    background: #FAF6EE;
+    border: 0.6px solid #D8CEB8;
+    border-radius: 1.5px;
+    padding: 2px 3px;
+    text-align: center;
+  }
+  .kf-val { font-size: 9.8px; font-weight: 800; color: #B91C1C; line-height: 1.05; }
+  .kf-lbl { font-size: 6.5px; font-weight: 700; color: #44403C; line-height: 1.05; }
 
-  /* === RIGHT LOWER: 33 BRIEFS === */
+  /* === 35 BRIEFS IN 3 CLEAN COLUMNS (8.9-9.0px) === */
   .briefs-panel {
-    height: 356px;
+    height: 345px;
     background: #F4EFE4;
     border: 1px solid #C8BFA8;
     border-radius: 2px;
-    padding: 4px 7px;
+    padding: 4px 8px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -712,76 +577,112 @@ export function renderBroadsheetHtml(): string {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    border-bottom: 1.5px solid #141413;
+    border-bottom: 1.6px solid #141413;
     padding-bottom: 2px;
-    margin-bottom: 3px;
+    margin-bottom: 2.5px;
     flex-shrink: 0;
   }
   .briefs-title {
-    font-family: 'Noto Serif', 'Liberation Serif', Georgia, serif;
-    font-size: 9.8px;
+    font-family: 'Noto Serif', 'DejaVu Serif', 'Liberation Serif', Georgia, serif;
+    font-size: 10.6px;
     font-weight: 700;
     color: #141413;
   }
   .briefs-sub {
-    font-size: 6.7px;
-    font-weight: 700;
-    color: #57534E;
+    font-size: 7.4px;
+    font-weight: 800;
+    color: #44403C;
     letter-spacing: 0.3px;
   }
   .briefs-cols {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
     overflow: hidden;
   }
   .briefs-col {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    padding-bottom: 2px;
-    gap: 3px;
+    justify-content: flex-start;
+    gap: 4px;
     overflow: hidden;
   }
-  .briefs-col:first-child {
+  .briefs-col:not(:last-child) {
     border-right: 1px solid #D8CEB8;
-    padding-right: 8px;
+    padding-right: 6px;
   }
   .brief-group {
     display: flex;
     flex-direction: column;
-    gap: 2.5px;
+    gap: 1.5px;
   }
   .brief-group-hdr {
-    font-size: 7.35px;
+    font-size: 7.8px;
     font-weight: 800;
-    letter-spacing: 0.45px;
-    border-left: 3px solid;
+    letter-spacing: 0.4px;
+    border-left: 3.5px solid;
     padding-left: 4px;
-    margin-bottom: 1px;
+    margin-bottom: 0.5px;
     background: #EAE2D2;
-    line-height: 13px;
+    line-height: 11.5px;
   }
-  .brief-count { font-weight: 600; opacity: 0.85; }
   .brief-item {
-    font-size: 7.12px;
-    line-height: 1.20;
-    color: #2B2A27;
+    font-size: 8.85px;
+    line-height: 1.13;
+    color: #1C1917;
   }
   .b-id { font-weight: 800; }
-  .b-src { color: #57534E; font-style: italic; font-size: 6.85px; }
+  .b-src { color: #57534E; font-style: italic; font-size: 8.0px; }
 
-  /* === BAND 6: COLOPHON FOOTER === */
-  .colophon {
-    height: 13px;
+  /* === BAND 6: FULL-WIDTH HORIZONTAL DATE CHECK STRIP === */
+  .date-check {
+    height: 49px;
     flex-shrink: 0;
-    border-top: 1px solid #C8BFA8;
-    padding-top: 2px;
+    background: #FDF8F6;
+    border: 1.6px solid #B91C1C;
+    border-radius: 2px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .dc-hdr {
+    background: #B91C1C;
+    color: #FFFFFF;
+    font-size: 7.6px;
+    font-weight: 800;
+    letter-spacing: 0.45px;
+    padding: 1.5px 7px;
+    display: flex;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .dc-body {
+    padding: 2px 7px;
+    font-size: 7.75px;
+    line-height: 1.22;
+    color: #1C1917;
+    display: flex;
+    align-items: center;
+    flex: 1;
+  }
+  .dc-win {
+    font-weight: 800;
+    color: #991B1B;
+    background: #FEE2E2;
+    padding: 0 3px;
+    border-radius: 1.5px;
+  }
+
+  /* === BAND 7: COLOPHON === */
+  .colophon {
+    height: 11px;
+    flex-shrink: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 6.7px;
+    font-size: 7.1px;
+    font-weight: 700;
     color: #57534E;
   }
 </style>
@@ -793,71 +694,64 @@ export function renderBroadsheetHtml(): string {
       <div class="eyebrow-left"><span class="eyebrow-pill">THE GLOBAL DISPATCH</span><span>THE WORLD IN ONE DAY</span></div>
       <div>48 VERIFIED STORIES · 7 REGIONS · 17 FIELDS · FULL 00:00–24:00 UTC</div>
     </div>
-    <div class="title-row">
-      <h1 class="masthead-title">${esc(EDITION_DATE)}</h1>
-      <div class="edition-stamp"><strong>ARCHIVAL BROADSHEET</strong><br/>OCCURRED OR FIRST REPORTED 20 NOV</div>
-    </div>
-    <p class="masthead-deck">Kyiv’s Dnipro bridges struck in 515-weapon barrage as AI tech rout sends S&amp;P 500 into correction (−3.7%, Nvidia −14%), Cyclone Akvan spares Odisha lives, and Russian missiles enter Poland.</p>
+    <h1 class="masthead-title">${esc(EDITION_DATE)}</h1>
+    <p class="masthead-deck">111 missiles &amp; 404 drones hit Kyiv bridges · AI rout sinks S&amp;P 500 3.7% &amp; Nvidia 14% · Cyclone Akvan spares Odisha · Missiles enter Poland</p>
     <div class="double-rule"></div>
   </header>
 
-  <section class="ribbon">
+  <section class="ribbon" aria-label="Regional coverage and 24-hour UTC timeline">
+    <div class="reg-bar">${regionBarHtml}</div>
     <div class="utc-row">
       <div class="ribbon-label-red">THE DAY IN UTC</div>
-      <div class="utc-track">
-      ${utcHtml}
-      </div>
-    </div>
-    <div class="kpi-row">
-      <div class="ribbon-label-dark">THE DAY IN NUMBERS</div>
-      <div class="kpi-grid">
-      ${kpiHtml}
-      </div>
-    </div>
-    <div class="tax-row">
-      <div class="reg-wrap">
-        <span class="tax-lbl">7 REGIONS (48)</span>
-        <div class="reg-bar">${regionBarHtml}</div>
-      </div>
-      <div class="fields-wrap"><strong>17 FIELDS (48):</strong> ${fieldSummary}</div>
+      <div class="utc-track">${utcHtml}</div>
     </div>
   </section>
 
-  <section class="leads-grid">
+  <section class="leads-grid" aria-label="Lead stories">
     ${leads.map(renderLeadCard).join('\n    ')}
   </section>
 
-  <section class="features-grid">
+  <section class="features-grid" aria-label="Illustrated feature stories">
     ${features.map(renderFeatureCard).join('\n    ')}
   </section>
 
-  <section class="lower-deck">
+  <section class="lower-deck" aria-label="World map and 35 regional briefs">
     <div class="left-lower">
       <div class="map-panel">
         <div class="panel-hdr">
           <span class="panel-title">WHERE IT HAPPENED</span>
-          <span class="panel-sub">Pins 1–15 = Leads &amp; Features · Dots = Briefs</span>
+          <span class="panel-sub">Pins 1–13 · Dots 14–46</span>
         </div>
         <div class="map-box">${renderWorldMap(STORIES)}</div>
         <div class="how-sure">
-          <strong style="color:#141413">HOW SURE:</strong>
           <span class="hs-item"><span class="ep-badge-sm ep-official">OFFICIAL</span> Gov/Agency</span>
           <span class="hs-item"><span class="ep-badge-sm ep-confirmed">CONFIRMED</span> Multi-wire</span>
           <span class="hs-item"><span class="ep-badge-sm ep-reported">REPORTED</span> Single/Trial</span>
-          <span class="hs-item"><span class="ep-badge-sm ep-ongoing">ONGOING</span> Active</span>
+          <span class="hs-item"><span class="ep-badge-sm ep-ongoing">ONGOING</span> Active talks</span>
         </div>
       </div>
-      <div class="date-check">
-        <div class="dc-hdr">DATE CHECK — EXCLUDED NEAR-DATE EVENTS (ZERO OVERLAP)</div>
-        <div class="dc-body">
-          ${dateCheckHtml}
+
+      <div class="how-to-read">
+        <div class="htr-hdr">KEY FIGURES &amp; 17-FIELD INDEX</div>
+        <div class="kf-grid">
+          <div class="kf-cell"><div class="kf-val">111+404</div><div class="kf-lbl">Kyiv barrage</div></div>
+          <div class="kf-cell"><div class="kf-val">−3.7%</div><div class="kf-lbl">S&amp;P 500 close</div></div>
+          <div class="kf-cell"><div class="kf-val">−14%</div><div class="kf-lbl">Nvidia plunge</div></div>
+          <div class="kf-cell"><div class="kf-val">300k+</div><div class="kf-lbl">Odisha evac.</div></div>
+          <div class="kf-cell"><div class="kf-val">100k</div><div class="kf-lbl">UK–EU visas</div></div>
+          <div class="kf-cell"><div class="kf-val">60.7%</div><div class="kf-lbl">Cancer ORR</div></div>
+        </div>
+        <div class="htr-body">
+          <div><strong>17 Fields (48):</strong> Markets 8 · War 6 · Security 4 · Diplomacy 4 · Sport 4 · Economy 4 · Climate 2 · Energy 2 · Labour 2 · Rights 2 · Courts 2 · Politics 2 · Tech 2 · Weather 1 · Health 1 · Society 1 · Disasters 1.</div>
+          <div><strong>Editorial rule:</strong> Every event occurred or was first reported Fri 20 Nov 2026; single-outlet reports separated from multi-wire facts.</div>
         </div>
       </div>
     </div>
+
     <div class="briefs-panel">
       <div class="briefs-hdr">
-        <span class="briefs-title">ALSO ON FRIDAY 20 NOVEMBER — 33 VERIFIED BRIEFS</span>
-        <span class="briefs-sub">7 REGIONS · WIRE SOURCES CITED</span>
+        <span class="briefs-title">ALSO ON FRIDAY 20 NOVEMBER — 35 VERIFIED BRIEFS, BY REGION</span>
+        <span class="briefs-sub">7 REGIONS · 17 FIELDS · WIRE SOURCES CITED</span>
       </div>
       <div class="briefs-cols">
         <div class="briefs-col" id="briefs-col-1">
@@ -866,8 +760,19 @@ export function renderBroadsheetHtml(): string {
         <div class="briefs-col" id="briefs-col-2">
           ${col2Regions.map((r) => renderBriefGroup(r, briefs)).join('\n          ')}
         </div>
+        <div class="briefs-col" id="briefs-col-3">
+          ${col3Regions.map((r) => renderBriefGroup(r, briefs)).join('\n          ')}
+        </div>
       </div>
     </div>
+  </section>
+
+  <section class="date-check" aria-label="Excluded near-date stories">
+    <div class="dc-hdr">
+      <span>DATE CHECK — EXCLUDED NEAR-DATE EVENTS (ZERO OVERLAP WITH #1–#48)</span>
+      <span>100% FRIDAY 20 NOV 2026 ANY TIME ZONE</span>
+    </div>
+    <div class="dc-body"><div>${dateCheckHtml}</div></div>
   </section>
 
   <footer class="colophon">
